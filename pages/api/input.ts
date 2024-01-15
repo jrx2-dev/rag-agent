@@ -1,4 +1,7 @@
-import { setNextCall } from '@/utils/connection';
+import { Call } from '@/schemas/call';
+import { AbortCallSchema, AnswerSchema, Flow, Step } from '@/schemas/flow';
+import { createAgent } from '@/utils/agent/makeStructuredChatAgentExecutor';
+import { setConnectionAbortControler, setConnectionData } from '@/utils/connection';
 import type { NextApiRequest, NextApiResponse } from 'next';
 
 export default async function handler(
@@ -23,7 +26,62 @@ export default async function handler(
       return;
     }
 
-    setNextCall({
+    const makeAgentCall = async (call : Call) => {
+      const controller = new AbortController();
+      let sanitizedQuestion: string; 
+      sanitizedQuestion = call.question.trim().replaceAll('\n', ' ');
+        try {
+          const flow: Flow = [];
+          const trackStep = (step: Step) => {
+            flow.push(step);
+            setConnectionData(call.connectionId, step)
+          };
+
+          setConnectionAbortControler(call.connectionId, controller);
+
+          const agent = await createAgent(
+            call.openAiConfig,
+            call.pineconeConfig,
+            call.bearlyConfig,
+            call.history,
+            call.retrievalTools,
+            call.wrapperTools,
+            call.duckDuckGoTools,
+            trackStep,
+          );
+          const results = await agent.call({
+            input: sanitizedQuestion,
+            signal: controller.signal,
+          });
+          const answer = AnswerSchema.parse({
+            text: results.output,
+            flow: flow,
+            query: sanitizedQuestion,
+          });
+
+          setConnectionData(call.connectionId, answer)
+        } catch (error) {
+          if (controller.signal.aborted) {
+            const abort = AbortCallSchema.parse({
+              connectionId,
+              query: sanitizedQuestion
+            });
+            setConnectionData(call.connectionId, abort)
+          } else {
+            console.log(error);
+            const answer = AnswerSchema.parse({
+              text: 'Problem starting agent. Check config.',
+              flow: [],
+              query: sanitizedQuestion,
+            });
+            setConnectionData(call.connectionId, answer)
+          }
+        } finally {
+          sanitizedQuestion = '';
+        }
+    }
+
+    makeAgentCall({
       openAiConfig,
       pineconeConfig,
       bearlyConfig,
@@ -33,11 +91,11 @@ export default async function handler(
       retrievalTools,
       wrapperTools,
       duckDuckGoTools,
-    });
+    })
 
     res.status(200).json('ok');
   } catch (error: any) {
-    console.error('NEXT CALL ERROR', error);
+    console.error('AGENT CALL ERROR', error);
     res.status(500).json({ error: error.message || 'Something went wrong' });
   }
 }

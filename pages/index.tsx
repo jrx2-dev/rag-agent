@@ -125,84 +125,85 @@ export default function Home() {
     [],
   );
 
+  const [callTimer, setCallTimer] = useState<NodeJS.Timer>();
+
   useEffect(() => {
-    const fetchData = () => {
-      let connection = new EventSource(
-        `api/connection?connectionId=${connectionId}`,
-      );
+    if (!loading && callTimer) {
+      clearInterval(callTimer)
+    }
+  }, [loading, callTimer])
+  
 
-      connection.addEventListener(
-        'message',
-        function (e) {
-          const parsedAnswer = AnswerSchema.safeParse(JSON.parse(e.data));
-          if (parsedAnswer.success) {
-            const data = parsedAnswer.data;
-            setSavedMessages((state) => [
+  const getCallData = async () => {
+    try {
+      const data = await fetch(`api/data?connectionId=${connectionId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const dataObject = await data.json();
+
+      const parsedAnswer = AnswerSchema.safeParse(
+        JSON.parse(JSON.stringify(dataObject)),
+      );
+      if (parsedAnswer.success) {
+        const data = parsedAnswer.data;
+        setSavedMessages((state) => [
+          {
+            messages: [
+              ...(state?.length ? state[0].messages : []),
               {
-                messages: [
-                  ...(state?.length ? state[0].messages : []),
-                  {
-                    type: MessageTypeSchema.Values.apiMessage,
-                    message: data.text,
-                    flow: data.flow,
-                  },
-                ],
-                history: [
-                  ...(state?.length ? state[0].history : []),
-                  [data.query, data.text],
-                ],
+                type: MessageTypeSchema.Values.apiMessage,
+                message: data.text,
+                flow: data.flow,
               },
-            ]);
-            setFlowDialogOpen(false);
-            setLoading(false);
-          }
-          const parsedStep = StepSchema.safeParse(JSON.parse(e.data));
-          if (parsedStep.success) {
-            const data = parsedStep.data;
-            setSteps((state) => [...state, data]);
-            setFlowDialogOpen(true);
-          }
-          const parsedAbort = AbortCallSchema.safeParse(JSON.parse(e.data));
-          if (parsedAbort.success) {
-            const data = parsedAbort.data;
-            setSavedMessages((state) => {
-              state?.length && state[0].messages.pop();
-              return [
-                {
-                  messages: [...(state ? state[0].messages : [])],
-                  history: [...(state ? state[0].history : [])],
-                },
-              ];
-            });
-            setFlowDialogOpen(false);
-            setLoading(false);
-            setQuery(data.query || '')
-          }
-        },
-        false,
-      );
-
-      connection.addEventListener(
-        'error',
-        function (error) {
-          console.error('CONNECTION ERROR', error);
-          setLoading(false);
-        },
-        false,
-      );
-      return connection;
-    };
-    const connection = fetchData();
-
-    textAreaRef.current?.focus();
-
-    return () => {
-      if (connection) {
-        connection.close();
+            ],
+            history: [
+              ...(state?.length ? state[0].history : []),
+              [data.query, data.text],
+            ],
+          },
+        ]);
+        setFlowDialogOpen(false);
+        setLoading(false);
       }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+
+      const parsedStep = StepSchema.safeParse(
+        JSON.parse(JSON.stringify(dataObject)),
+      );
+      if (parsedStep.success) {
+        const data = parsedStep.data;
+        setSteps((state) => [...state, data]);
+        setFlowDialogOpen(true);
+      }
+
+      const parsedAbort = AbortCallSchema.safeParse(
+        JSON.parse(JSON.stringify(dataObject)),
+      );
+      if (parsedAbort.success) {
+        const data = parsedAbort.data;
+        setSavedMessages((state) => {
+          state?.length && state[0].messages.pop();
+          return [
+            {
+              messages: [...(state ? state[0].messages : [])],
+              history: [...(state ? state[0].history : [])],
+            },
+          ];
+        });
+        setFlowDialogOpen(false);
+        setLoading(false);
+        setQuery(data.query || '');
+      }
+
+      textAreaRef.current?.focus();
+    } catch (error) {
+      console.error('CONNECTION ERROR', error);
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     messageListRef.current?.scrollTo(0, messageListRef.current.scrollHeight);
@@ -232,6 +233,8 @@ export default function Home() {
         } as Call),
       });
       setQuery('');
+      const interval = setInterval(getCallData, 3000);
+      setCallTimer(interval);
     } catch (error) {
       console.error('SEND CALL ERROR', error);
       setLoading(false);
@@ -267,12 +270,18 @@ export default function Home() {
     setSavedMessages((state) => {
       return [
         {
-          messages: [...(state ? state[0].messages.slice(0, messageIndex) : [])],
-          history: [...(state ? state[0].history.slice(0, Math.floor(messageIndex/2)) : [])],
+          messages: [
+            ...(state ? state[0].messages.slice(0, messageIndex) : []),
+          ],
+          history: [
+            ...(state
+              ? state[0].history.slice(0, Math.floor(messageIndex / 2))
+              : []),
+          ],
         },
       ];
     });
-  }
+  };
 
   //handle form submission
   async function handleSubmit(e: any) {

@@ -1,5 +1,8 @@
 # RAG Agent: AI Assistant Experiment
 
+## Disclaimer
+In this version, the original development based on Server Sent Events and the use of observables (RxJS) had to be suppressed due to the limitations imposed by Vercel on long-lived connections in the Hobby plan. Instead, a request interval mechanic was implemented to obtain data that may be generated during the agent execution.
+
 ## Introduction
 
 This project presents an experimental AI assistant, leveraging the power of Large Language Models (like chat-gpts LLMs from OpenAI) and integrating various tools for information retrieval and task execution. The core of this project is built using the [LangChain](https://js.langchain.com/) framework.
@@ -28,20 +31,12 @@ This project presents an experimental AI assistant, leveraging the power of Larg
 
 ## Additional Features
 
-### Server Sent Events
-- **Description**: Long-life connection for asynchronous message transmission from server to client.
-- **Application**: Used for sending agent responses and information about the steps followed to obtain user responses. Includes specific endpoints for initiating and canceling queries.
-
-### RXJS Library
-- **Implementation**: Manages an observable queue (similar to Redis) in memory.
-- **Functionality**: Tracks agent executions for each connection, allowing subscription to specific executions (agent-user connections). New responses from the agent are sent to the user via Server Sent Events.
-
 ### Text-to-Speech and Speech-to-Text
 - **Integration**: Utilizes browser capabilities for text-to-speech and speech-to-text functionalities.
 - **Purpose**: Allows dictating new messages to the agent and listening to agent responses.
 
 ### Additional Technologies
-- **Used Technologies**: [NextJs](https://nextjs.org/), [Tailwind](https://tailwindcss.com/), [Zod](https://zod.dev/), [Shadcn/ui](https://ui.shadcn.com/), [RxJS](https://rxjs.dev/) and other libraries.
+- **Used Technologies**: [NextJs](https://nextjs.org/), [Tailwind](https://tailwindcss.com/), [Zod](https://zod.dev/), [Shadcn/ui](https://ui.shadcn.com/) and other libraries.
 - **Data Storage**: Due to the absence of a database for credentials or configurations, all data is stored in local storage (client side) and sent to the back with each query to instantiate the agent and necessary tools. No information is stored on the backend.
 
 ## Conclusion

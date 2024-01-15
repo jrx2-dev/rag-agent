@@ -1,4 +1,4 @@
-import { setNextAbortCall } from '@/utils/abortCall';
+import { getConnection } from '@/utils/connection';
 import type { NextApiRequest, NextApiResponse } from 'next';
 
 export default async function handler(
@@ -13,9 +13,10 @@ export default async function handler(
       return;
     }
 
-    setNextAbortCall({
-      connectionId,
-    });
+    const connection = getConnection(connectionId);
+    if (connection && connection.abortController) {
+      connection.abortController.abort();
+    }
 
     res.status(200).json('ok');
   } catch (error: any) {
